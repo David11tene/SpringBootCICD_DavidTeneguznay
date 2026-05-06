@@ -31,7 +31,7 @@ public class StudentRepositoryTest {
         var result = studentRepository.findByEmail("test@test.com");
 
         // 4. Verificar que el resultado sea correcto
-        assertTrue(result.isPresent());
+        assert(result.isPresent());
         assertEquals("Test User", result.get().getFullName());
     }
 }
