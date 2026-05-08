@@ -8,7 +8,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class RequestLoggingInterceptor implements HandlerInterceptor {
 
-    // Token "simulado" (hardcodeado) para validacion basica
     // Incluye el prefijo "Bearer " como se usa en el header Authorization
     private static final String SECRET_TOKEN = "Bearer springlab-secure-token-2026";
 
@@ -16,15 +15,8 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp,
                              Object handler) throws Exception {
-
-        // Guarda el tiempo actual en milisegundos dentro de la request
-        // Se usara despues para calcular el tiempo total de la peticion
         req.setAttribute("t0", System.currentTimeMillis());
-
-        // Imprime en consola el metodo HTTP (GET, POST, etc.) y la URI solicitada
         System.out.println("preHandle: " + req.getMethod() + " " + req.getRequestURI() );
-
-        // Obtiene el header "Authorization" de la peticion HTTP
         String authHeader = req.getHeader("Authorization");
 
         // Verifica si el header no existe o no tiene el formato "Bearer ..."
@@ -55,7 +47,6 @@ public class RequestLoggingInterceptor implements HandlerInterceptor {
         Long t0 = (Long)req.getAttribute("t0");
 
         // Calcula el tiempo total de ejecucion
-        // Si no existe t0, devuelve -1
         long elapsed = (t0 == null) ? -1 : (System.currentTimeMillis() - t0);
 
         // Imprime en consola el status HTTP de la respuesta y el tiempo total en ms
