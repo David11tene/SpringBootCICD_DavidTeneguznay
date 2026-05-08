@@ -1,11 +1,20 @@
 #Bloque raiz de configuracion de Spring Boot.
 spring:
-    #Configuracion del datasource (conexion a la base de datos).
+
+    #Se usa H2 en memoria para que funcione en Render.
     datasource:
-        url: jdbc:mysql://localhost:3306/spring_lab?useSSL=false&serverTimezone=UTC
-        username: root
-        password: admin
-        driver-class-name: com.mysql.cj.jdbc.Driver
+        url: jdbc:h2:mem:testdb
+        username: sa
+        password:
+        driver-class-name: org.h2.Driver
+
+    #Configuracion original de MySQL (comentada porque Render no tiene MySQL local).
+    #datasource:
+    #    url: jdbc:mysql://localhost:3306/spring_lab?useSSL=false&serverTimezone=UTC
+    #    username: root
+    #    password: admin
+    #    driver-class-name: com.mysql.cj.jdbc.Driver
+
     #Configuracion de JPA/Hibernate (capa de persistencia).
     jpa:
         hibernate:
@@ -14,9 +23,17 @@ spring:
         properties:
             hibernate:
                 format_sql: true
+
+    #Habilita la consola web de H2 (opcional).
+    h2:
+        console:
+            enabled: true
+
     devtools:
         restart:
             enabled: true
+
 #Configuracion del servidor embebido (Tomcat).
+#Render usa puertos dinamicos.
 server:
-    port: 8080
+    port: ${PORT:8080}
