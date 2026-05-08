@@ -1,26 +1,26 @@
 # ===== ETAPA 1: BUILD =====
-FROM gradle:8.5-jdk21 AS build
+FROM gradle:8.7-jdk21 AS build
 
 WORKDIR /app
 
-# Copiar archivos del proyecto
+# Copiar proyecto
 COPY . .
 
-# Dar permisos al wrapper
+# Permisos
 RUN chmod +x gradlew
 
-# Compilar proyecto
-RUN ./gradlew build -x test
+# Compilar
+RUN ./gradlew clean build -x test --no-daemon
 
 # ===== ETAPA 2: RUN =====
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:21-jdk
 
 WORKDIR /app
 
-# Copiar el jar generado
+# Copiar jar generado
 COPY --from=build /app/build/libs/*.jar app.jar
 
-# Puerto usado por Spring Boot
+# Puerto Spring Boot
 EXPOSE 8080
 
 # Ejecutar aplicación
