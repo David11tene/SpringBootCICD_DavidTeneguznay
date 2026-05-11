@@ -58,23 +58,30 @@ jobs:
 
       - name: Wait for Deployment Success
         run: |
-          echo "Monitoreando el estado del despliegue..."
+          echo "Monitoreando el estado del despliegue: ${{ steps.deploy.outputs.deploy_id }}"
           while true; do
-            # Consultamos el estado del despliegue específico
-            STATUS=$(curl -s -X GET "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/${{ steps.deploy.outputs.deploy_id }}" \
+            # Consultamos el estado y guardamos la respuesta completa para debug
+            RESPONSE=$(curl -s -X GET "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/${{ steps.deploy.outputs.deploy_id }}" \
               -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-              -H "Accept: application/json" | jq -r '.deploy.status')
-            
-            echo "Estado actual: $STATUS"
-            
+              -H "Accept: application/json")
+
+            # Intentamos extraer el estado (probando dos rutas posibles en el JSON)
+            STATUS=$(echo $RESPONSE | jq -r '.status // .deploy.status')
+
+            echo "Respuesta completa de la API: $RESPONSE"
+            echo "Estado extraído: $STATUS"
+
             if [ "$STATUS" == "live" ]; then
               echo "¡Despliegue exitoso!"
               exit 0
             elif [ "$STATUS" == "build_failed" ] || [ "$STATUS" == "update_failed" ] || [ "$STATUS" == "canceled" ]; then
               echo "Error: El despliegue falló en Render con estado: $STATUS"
               exit 1
+            elif [ "$STATUS" == "null" ] || [ -z "$STATUS" ]; then
+              echo "Error crítico: No se pudo obtener el estado del JSON. Respuesta completa: $RESPONSE"
+              exit 1
             fi
-            
+
             # Esperar 20 segundos antes de volver a preguntar
             sleep 20
           done
