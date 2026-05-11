@@ -1,87 +1,31 @@
-# Nombre del flujo: Se encarga de enviar la app a producción (Render)
 name: CD - Deploy Render
 
 on:
   workflow_run:
-    # Este flujo se activa automáticamente cuando el flujo de CI termina
     workflows: ["CI - Build and Test"]
-    types:
-      - completed
+    types: [completed]
 
 jobs:
   deploy:
-    # Condición de seguridad: Solo se ejecuta si el CI terminó con éxito
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
     runs-on: ubuntu-latest
-
     steps:
-      - name: Update App Version in Render
+      - name: Deploy to Render
         run: |
-          echo "Actualizando APP_VERSION en Render a: ${{ github.run_number }}"
-          
-          # Actualizamos la configuración del servicio en Render para cambiar la variable de entorno
-          curl -s -X PATCH "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"envVars\": [
-                {
-                  \"key\": \"APP_VERSION\",
-                  \"value\": \"v1.${{ github.run_number }}-${{ github.sha }}\"
-                }
-              ]
-            }"
+          # 1. Actualizar versión en Render (Punto d)
+          curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" -H "Content-Type: application/json" \
+            -X PATCH -d "{\"envVars\": [{\"key\": \"APP_VERSION\", \"value\": \"${{ github.run_number }}\"}]}" \
+            https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}
 
-      - name: Trigger Render Deploy
-        id: deploy
-        run: |
-          # Iniciamos el despliegue vía API
-          RESPONSE=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
-            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json")
-          
-          echo "Respuesta de Render: $RESPONSE"
-          
-          # Capturamos el ID de diferentes posibles niveles del JSON
-          DEPLOY_ID=$(echo $RESPONSE | jq -r '.id // .deploy.id')
-          
-          if [ "$DEPLOY_ID" == "null" ] || [ -z "$DEPLOY_ID" ]; then
-            echo "Error: No se pudo obtener el ID del despliegue. Respuesta: $RESPONSE"
-            exit 1
-          fi
-          
-          echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
-          echo "Despliegue iniciado con ID: $DEPLOY_ID"
+          # 2. Iniciar deploy y capturar ID
+          ID=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" -X POST \
+            https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys | jq -r .id)
 
-      - name: Wait for Deployment Success
-        run: |
-          echo "Monitoreando el estado del despliegue: ${{ steps.deploy.outputs.deploy_id }}"
-          while true; do
-            # Consultamos el estado y guardamos la respuesta completa para debug
-            RESPONSE=$(curl -s -X GET "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/${{ steps.deploy.outputs.deploy_id }}" \
-              -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-              -H "Accept: application/json")
-
-            # Intentamos extraer el estado (probando dos rutas posibles en el JSON)
-            STATUS=$(echo $RESPONSE | jq -r '.status // .deploy.status')
-
-            echo "Respuesta completa de la API: $RESPONSE"
-            echo "Estado extraído: $STATUS"
-
-            if [ "$STATUS" == "live" ]; then
-              echo "¡Despliegue exitoso!"
-              exit 0
-            elif [ "$STATUS" == "build_failed" ] || [ "$STATUS" == "update_failed" ] || [ "$STATUS" == "canceled" ]; then
-              echo "Error: El despliegue falló en Render con estado: $STATUS"
-              exit 1
-            elif [ "$STATUS" == "null" ] || [ -z "$STATUS" ]; then
-              echo "Error crítico: No se pudo obtener el estado del JSON. Respuesta completa: $RESPONSE"
-              exit 1
-            fi
-
-            # Esperar 20 segundos antes de volver a preguntar
-            sleep 20
+          # 3. Esperar éxito o fallo (Punto c)
+          until [ "$ST" == "live" ]; do
+            ST=$(curl -s -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+              https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/$ID | jq -r .status)
+            echo "Estado: $ST"
+            if [ "$ST" == "build_failed" ] || [ "$ST" == "update_failed" ]; then exit 1; fi
+            sleep 30
           done
