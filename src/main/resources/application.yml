@@ -37,3 +37,7 @@ spring:
 #Render usa puertos dinamicos.
 server:
     port: ${PORT:8080}
+
+# Versión de la aplicación
+app:
+    version: ${APP_VERSION:dev-local}

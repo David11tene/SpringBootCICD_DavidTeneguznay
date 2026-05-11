@@ -1,0 +1,49 @@
+name: Rollback - Revert to Last Stable
+
+on:
+  workflow_dispatch: # Permite ejecución manual desde la web de GitHub
+  workflow_run:
+    workflows: ["CD - Deploy Render"] # Se activa cuando el CD termina
+    types:
+      - completed
+
+jobs:
+  rollback:
+    # Solo se ejecuta si el CD falló O si lo activas manualmente
+    if: ${{ github.event.workflow_run.conclusion == 'failure' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Last Stable Deploy
+        id: get_stable
+        run: |
+          echo "Buscando el último despliegue exitoso..."
+          
+          # 1. Obtener la lista de despliegues del servicio
+          # Usamos RENDER_SERVICE_ID y RENDER_API_KEY (que configurarás en Secrets)
+          RESPONSE=$(curl -s -X GET "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Accept: application/json")
+          
+          # 2. Extraer el commitId del primer despliegue que esté "live"
+          # jq es una herramienta para procesar JSON que ya viene en GitHub Actions
+          STABLE_COMMIT=$(echo $RESPONSE | jq -r '[.[] | select(.deploy.status=="live")][0].deploy.commitId')
+          
+          if [ "$STABLE_COMMIT" == "null" ] || [ -z "$STABLE_COMMIT" ]; then
+            echo "Error: No se encontró ningún despliegue estable previo para revertir."
+            exit 1
+          fi
+          
+          echo "commit_id=$STABLE_COMMIT" >> $GITHUB_OUTPUT
+          echo "Se encontró la versión estable con commit: $STABLE_COMMIT"
+
+      - name: Trigger Rollback Deploy
+        run: |
+          echo "Iniciando rollback al commit: ${{ steps.get_stable.outputs.commit_id }}"
+          
+          curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "{\"commitId\": \"${{ steps.get_stable.outputs.commit_id }}\"}"
+          
+          echo "Rollback solicitado exitosamente."

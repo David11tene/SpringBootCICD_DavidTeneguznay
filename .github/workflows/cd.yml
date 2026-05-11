@@ -16,7 +16,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Render Deploy
+      - name: Update App Version in Render
         run: |
-          # Envía una petición POST a la URL de Render (guardada en Secretos) para iniciar el despliegue
-          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+          echo "Actualizando APP_VERSION en Render a: ${{ github.run_number }}"
+          
+          # Actualizamos la configuración del servicio en Render para cambiar la variable de entorno
+          curl -s -X PATCH "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"envVars\": [
+                {
+                  \"key\": \"APP_VERSION\",
+                  \"value\": \"v1.${{ github.run_number }}-${{ github.sha }}\"
+                }
+              ]
+            }"
+
+      - name: Trigger Render Deploy
+        id: deploy
+        run: |
+          # Iniciamos el despliegue vía API para obtener un ID de seguimiento
+          RESPONSE=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Accept: application/json" \
+            -H "Content-Type: application/json")
+          
+          DEPLOY_ID=$(echo $RESPONSE | jq -r '.deploy.id')
+          echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
+          echo "Despliegue iniciado con ID: $DEPLOY_ID"
+
+      - name: Wait for Deployment Success
+        run: |
+          echo "Monitoreando el estado del despliegue..."
+          while true; do
+            # Consultamos el estado del despliegue específico
+            STATUS=$(curl -s -X GET "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys/${{ steps.deploy.outputs.deploy_id }}" \
+              -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+              -H "Accept: application/json" | jq -r '.deploy.status')
+            
+            echo "Estado actual: $STATUS"
+            
+            if [ "$STATUS" == "live" ]; then
+              echo "¡Despliegue exitoso!"
+              exit 0
+            elif [ "$STATUS" == "build_failed" ] || [ "$STATUS" == "update_failed" ] || [ "$STATUS" == "canceled" ]; then
+              echo "Error: El despliegue falló en Render con estado: $STATUS"
+              exit 1
+            fi
+            
+            # Esperar 20 segundos antes de volver a preguntar
+            sleep 20
+          done
