@@ -37,13 +37,22 @@ jobs:
       - name: Trigger Render Deploy
         id: deploy
         run: |
-          # Iniciamos el despliegue vía API para obtener un ID de seguimiento
+          # Iniciamos el despliegue vía API
           RESPONSE=$(curl -s -X POST "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys" \
             -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
             -H "Accept: application/json" \
             -H "Content-Type: application/json")
           
-          DEPLOY_ID=$(echo $RESPONSE | jq -r '.deploy.id')
+          echo "Respuesta de Render: $RESPONSE"
+          
+          # Capturamos el ID de diferentes posibles niveles del JSON
+          DEPLOY_ID=$(echo $RESPONSE | jq -r '.id // .deploy.id')
+          
+          if [ "$DEPLOY_ID" == "null" ] || [ -z "$DEPLOY_ID" ]; then
+            echo "Error: No se pudo obtener el ID del despliegue. Respuesta: $RESPONSE"
+            exit 1
+          fi
+          
           echo "deploy_id=$DEPLOY_ID" >> $GITHUB_OUTPUT
           echo "Despliegue iniciado con ID: $DEPLOY_ID"
 
