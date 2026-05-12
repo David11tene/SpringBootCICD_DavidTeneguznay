@@ -36,7 +36,7 @@ public class StudentServiceTest {
         // 2. Crear una solicitud con el mismo correo electronico
         StudentCreateRequest req =  new StudentCreateRequest();
         req.setFullName("New user");
-        req.setEmail("duplicated@duplicated.com");
+        req.setEmail("uni@duplicated.com");
         existing.setBirthDate(LocalDate.of(2004,10,12));
 
         // 3. Verificar que el servicio lance ConflictException al intentar crear el duplicado

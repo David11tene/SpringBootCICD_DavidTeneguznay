@@ -38,6 +38,6 @@ spring:
 server:
     port: ${PORT:8080}
 
-# Versión de la aplicación
+# Versión de la aplicacion
 app:
     version: ${APP_VERSION:dev-local}
