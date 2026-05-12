@@ -28,4 +28,6 @@ jobs:
             echo "Estado: $ST"
             if [ "$ST" == "build_failed" ] || [ "$ST" == "update_failed" ]; then exit 1; fi
             sleep 30
+          # 4. Simular fallo para activar rollback
+          exit 1
           done
